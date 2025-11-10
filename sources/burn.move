@@ -19,7 +19,7 @@ const EInvalidBurnProof: u64 = 13;
 // ==================== BURN MANUAL ====================
 
 /// Destrói mensagem manualmente (por sender ou recipient)
-entry fun burn_message(mut message: Message, clock: &Clock, ctx: &TxContext) {
+entry fun burn_message(message: Message, clock: &Clock, ctx: &TxContext) {
     let burner = tx_context::sender(ctx);
     let now = clock::timestamp_ms(clock) / 1000;
 
@@ -125,10 +125,8 @@ entry fun batch_auto_burn(mut messages: vector<Message>, clock: &Clock, ctx: &Tx
             message::destroy(message);
         } else {
             // Se não expirou, devolve para owner
-            transfer::public_transfer(
-                message,
-                message::recipient(&message),
-            );
+            let recipient = message::recipient(&message);
+            transfer::public_transfer(message, recipient);
         };
 
         i = i + 1;

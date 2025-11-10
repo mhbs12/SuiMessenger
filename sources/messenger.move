@@ -52,7 +52,7 @@ entry fun send_message(
     );
 
     // Transfere para destinatário
-    transfer::transfer(message, recipient);
+    transfer::public_transfer(message, recipient);
 }
 
 // ==================== LEITURA COM ZK PROOF ====================
