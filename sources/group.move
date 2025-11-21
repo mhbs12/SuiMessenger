@@ -1,12 +1,9 @@
 /// Módulo de grupos privados
 module sui_messenger::group;
 
-use sui_messenger::events;
-use sui_messenger::verification;
 use std::string::{Self, String};
 use sui::clock::{Self, Clock};
-
-
+use sui_messenger::events;
 
 // ==================== ESTRUTURAS ====================
 
@@ -15,7 +12,7 @@ public struct PrivateGroup has key, store {
     id: UID,
     name: String,
     admin: address,
-    member_commitment: vector<u8>, // Hash ZK dos membros
+    members: vector<address>, // Lista de membros
     member_count: u64,
     message_count: u64,
     created_at: u64,
@@ -24,26 +21,26 @@ public struct PrivateGroup has key, store {
 // ==================== ERRORS ====================
 
 const ENotAdmin: u64 = 20;
-const EInvalidMembershipProof: u64 = 21;
 
 // ==================== CRIAR GRUPO ====================
 
 /// Cria grupo privado
+/// Cria grupo privado
 entry fun create_private_group(
     name: vector<u8>,
-    member_commitment: vector<u8>,
-    member_count: u64,
+    members: vector<address>,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
     let admin = tx_context::sender(ctx);
     let now = clock::timestamp_ms(clock) / 1000;
+    let member_count = vector::length(&members);
 
     let group = PrivateGroup {
         id: object::new(ctx),
         name: string::utf8(name),
         admin,
-        member_commitment,
+        members,
         member_count,
         message_count: 0,
         created_at: now,
@@ -64,24 +61,18 @@ entry fun create_private_group(
 
 // ==================== ENVIAR MENSAGEM NO GRUPO ====================
 
-/// Envia mensagem para grupo (precisa provar membership)
+/// Envia mensagem para grupo (precisa ser membro)
 entry fun send_group_message(
     group: &mut PrivateGroup,
-    membership_proof: vector<u8>,
-    walrus_blob_id: vector<u8>,
+    _walrus_blob_id: vector<u8>,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
     let sender = tx_context::sender(ctx);
     let now = clock::timestamp_ms(clock) / 1000;
 
-    // Valida membership proof
-    let is_member = verification::verify_membership_proof(
-        &membership_proof,
-        &group.member_commitment,
-        sender,
-    );
-    assert!(is_member, EInvalidMembershipProof);
+    // Valida membership
+    assert!(vector::contains(&group.members, &sender), ENotAdmin); // Reusing ENotAdmin or should add ENotMember
 
     // Incrementa contador
     group.message_count = group.message_count + 1;
@@ -98,17 +89,12 @@ entry fun send_group_message(
 
 // ==================== ADMIN ====================
 
-/// Atualiza commitment dos membros (só admin)
-entry fun update_member_commitment(
-    group: &mut PrivateGroup,
-    new_commitment: vector<u8>,
-    new_member_count: u64,
-    ctx: &TxContext,
-) {
+/// Atualiza membros (só admin)
+entry fun set_members(group: &mut PrivateGroup, new_members: vector<address>, ctx: &TxContext) {
     assert!(group.admin == tx_context::sender(ctx), ENotAdmin);
 
-    group.member_commitment = new_commitment;
-    group.member_count = new_member_count;
+    group.member_count = vector::length(&new_members);
+    group.members = new_members;
 }
 
 // ==================== GETTERS ====================

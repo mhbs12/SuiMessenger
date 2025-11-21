@@ -1,8 +1,8 @@
 /// Módulo centralizado de eventos
 module sui_messenger::events;
 
+use std::string::String;
 use sui::event;
-
 
 // ==================== EVENTOS ====================
 
@@ -10,28 +10,16 @@ public struct MessageSent has copy, drop {
     message_id: ID,
     sender: address,
     recipient: address,
+    walrus_blob_id: String,
+    seal_policy_id: Option<ID>,
+    content_hash: vector<u8>,
     timestamp: u64,
-    expires_at: u64,
-}
-
-public struct MessageRead has copy, drop {
-    message_id: ID,
-    reader: address,
-    timestamp: u64,
-    proof_hash: vector<u8>,
 }
 
 public struct MessageReadSimple has copy, drop {
     message_id: ID,
     reader: address,
     timestamp: u64,
-}
-
-public struct MessageBurned has copy, drop {
-    message_id: ID,
-    burner: address,
-    timestamp: u64,
-    reason: u8, // 0=manual, 1=expired, 2=auto
 }
 
 public struct GroupCreated has copy, drop {
@@ -53,29 +41,19 @@ public(package) fun emit_message_sent(
     message_id: ID,
     sender: address,
     recipient: address,
+    walrus_blob_id: String,
+    seal_policy_id: Option<ID>,
+    content_hash: vector<u8>,
     timestamp: u64,
-    expires_at: u64,
 ) {
     event::emit(MessageSent {
         message_id,
         sender,
         recipient,
+        walrus_blob_id,
+        seal_policy_id,
+        content_hash,
         timestamp,
-        expires_at,
-    });
-}
-
-public(package) fun emit_message_read(
-    message_id: ID,
-    reader: address,
-    timestamp: u64,
-    proof_hash: vector<u8>,
-) {
-    event::emit(MessageRead {
-        message_id,
-        reader,
-        timestamp,
-        proof_hash,
     });
 }
 
@@ -84,20 +62,6 @@ public(package) fun emit_message_read_simple(message_id: ID, reader: address, ti
         message_id,
         reader,
         timestamp,
-    });
-}
-
-public(package) fun emit_message_burned(
-    message_id: ID,
-    burner: address,
-    timestamp: u64,
-    reason: u8,
-) {
-    event::emit(MessageBurned {
-        message_id,
-        burner,
-        timestamp,
-        reason,
     });
 }
 
@@ -124,9 +88,3 @@ public(package) fun emit_group_message_sent(group_id: ID, sender: address, times
 }
 
 // ==================== CONSTANTS ====================
-
-public fun burn_reason_manual(): u8 { 0 }
-
-public fun burn_reason_expired(): u8 { 1 }
-
-public fun burn_reason_auto(): u8 { 2 }
