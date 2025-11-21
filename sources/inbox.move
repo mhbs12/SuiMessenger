@@ -12,8 +12,6 @@ public struct Inbox has key {
 
 // ==================== ERRORS ====================
 
-
-
 // ==================== FUNÇÕES PÚBLICAS ====================
 
 /// Cria novo inbox para usuário
@@ -27,7 +25,7 @@ entry fun create_inbox(ctx: &mut TxContext) {
         unread_count: 0,
     };
 
-    transfer::transfer(inbox, sender);
+    transfer::share_object(inbox);
 }
 
 /// Incrementa contador de mensagens

@@ -4,6 +4,7 @@ module sui_messenger::messenger;
 use std::string;
 use sui::clock::{Self, Clock};
 use sui_messenger::events;
+use sui_messenger::inbox;
 use sui_messenger::message::{Self, Message};
 
 // ==================== ERRORS ====================
@@ -17,6 +18,7 @@ const EAlreadyRead: u64 = 3;
 /// Envia mensagem criptografada
 entry fun send_message(
     recipient: address,
+    recipient_inbox: &mut inbox::Inbox, // [NEW] Inbox do destinatário
     walrus_blob_id: vector<u8>,
     content_hash: vector<u8>,
     encrypted_metadata: vector<u8>,
@@ -26,6 +28,10 @@ entry fun send_message(
 ) {
     let sender = tx_context::sender(ctx);
     let now = clock::timestamp_ms(clock) / 1000;
+
+    // [NEW] Atualiza Inbox
+    assert!(inbox::owner(recipient_inbox) == recipient, ENotRecipient);
+    inbox::increment_message_count(recipient_inbox);
 
     let message = message::new_message(
         sender,
@@ -57,7 +63,12 @@ entry fun send_message(
 // ==================== LEITURA ====================
 
 /// Marca mensagem como lida
-entry fun mark_as_read(message: &mut Message, clock: &Clock, ctx: &TxContext) {
+entry fun mark_as_read(
+    message: &mut Message,
+    reader_inbox: &mut inbox::Inbox, // [NEW] Inbox do leitor
+    clock: &Clock,
+    ctx: &TxContext,
+) {
     let reader = tx_context::sender(ctx);
     let now = clock::timestamp_ms(clock) / 1000;
 
@@ -67,6 +78,10 @@ entry fun mark_as_read(message: &mut Message, clock: &Clock, ctx: &TxContext) {
 
     // Marca como lida
     message::mark_as_read(message);
+
+    // [NEW] Atualiza Inbox
+    assert!(inbox::owner(reader_inbox) == reader, ENotRecipient);
+    inbox::decrement_unread_count(reader_inbox);
 
     // Emite evento
     events::emit_message_read_simple(

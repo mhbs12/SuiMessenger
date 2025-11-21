@@ -86,5 +86,3 @@ public(package) fun emit_group_message_sent(group_id: ID, sender: address, times
         timestamp,
     });
 }
-
-// ==================== CONSTANTS ====================
