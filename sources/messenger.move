@@ -1,24 +1,77 @@
-/// Módulo principal de envio e leitura de mensagens
 module sui_messenger::messenger;
 
 use std::string;
 use sui::clock::{Self, Clock};
+use sui_messenger::chat::{Self, Chat, ChatRegistry};
 use sui_messenger::events;
-use sui_messenger::inbox;
 use sui_messenger::message::{Self, Message};
 
 // ==================== ERRORS ====================
-
 const ENotRecipient: u64 = 1;
-
 const EAlreadyRead: u64 = 3;
 
-// ==================== ENVIAR MENSAGEM ====================
+// ==================== ENVIAR MENSAGEM (Chat Existente) ====================
 
-/// Envia mensagem criptografada
+/// Envia mensagem para um chat existente
 entry fun send_message(
+    chat: &mut Chat,
     recipient: address,
-    recipient_inbox: &mut inbox::Inbox, // [NEW] Inbox do destinatário
+    walrus_blob_id: vector<u8>,
+    content_hash: vector<u8>,
+    encrypted_metadata: vector<u8>,
+    seal_policy_id: Option<ID>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    internal_send_message(
+        chat,
+        recipient,
+        walrus_blob_id,
+        content_hash,
+        encrypted_metadata,
+        seal_policy_id,
+        clock,
+        ctx,
+    );
+}
+
+// ==================== ENVIAR MENSAGEM (Novo Chat) ====================
+
+/// Cria chat e envia mensagem em uma única transação
+entry fun create_chat_and_send(
+    registry: &mut ChatRegistry,
+    recipient: address,
+    walrus_blob_id: vector<u8>,
+    content_hash: vector<u8>,
+    encrypted_metadata: vector<u8>,
+    seal_policy_id: Option<ID>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    // Cria o chat (ainda não compartilhado)
+    let mut chat = chat::create_chat(registry, recipient, ctx);
+
+    // Envia a mensagem
+    internal_send_message(
+        &mut chat,
+        recipient,
+        walrus_blob_id,
+        content_hash,
+        encrypted_metadata,
+        seal_policy_id,
+        clock,
+        ctx,
+    );
+
+    // Compartilha o chat
+    chat::share_chat(chat);
+}
+
+// ==================== LÓGICA INTERNA ====================
+
+fun internal_send_message(
+    chat: &mut Chat,
+    recipient: address,
     walrus_blob_id: vector<u8>,
     content_hash: vector<u8>,
     encrypted_metadata: vector<u8>,
@@ -29,10 +82,13 @@ entry fun send_message(
     let sender = tx_context::sender(ctx);
     let now = clock::timestamp_ms(clock) / 1000;
 
-    // [NEW] Atualiza Inbox
-    assert!(inbox::owner(recipient_inbox) == recipient, ENotRecipient);
-    inbox::increment_message_count(recipient_inbox);
+    // 1. Auto-Mark as Read para o REMETENTE (se ele tinha mensagens não lidas)
+    chat::mark_as_read(chat, ctx);
 
+    // 2. Incrementa Unread para o DESTINATÁRIO
+    chat::increment_unread(chat, recipient);
+
+    // 3. Cria o objeto Message
     let message = message::new_message(
         sender,
         recipient,
@@ -45,7 +101,7 @@ entry fun send_message(
 
     let message_id = object::id(&message);
 
-    // Emite evento
+    // 4. Emite Evento
     events::emit_message_sent(
         message_id,
         sender,
@@ -56,19 +112,14 @@ entry fun send_message(
         now,
     );
 
-    // Transfere para destinatário
+    // 5. Transfere Message para o destinatário
     transfer::public_transfer(message, recipient);
 }
 
 // ==================== LEITURA ====================
 
-/// Marca mensagem como lida
-entry fun mark_as_read(
-    message: &mut Message,
-    reader_inbox: &mut inbox::Inbox, // [NEW] Inbox do leitor
-    clock: &Clock,
-    ctx: &TxContext,
-) {
+/// Marca mensagem como lida (e atualiza o Chat)
+entry fun mark_as_read(message: &mut Message, chat: &mut Chat, clock: &Clock, ctx: &mut TxContext) {
     let reader = tx_context::sender(ctx);
     let now = clock::timestamp_ms(clock) / 1000;
 
@@ -76,12 +127,11 @@ entry fun mark_as_read(
     assert!(message::recipient(message) == reader, ENotRecipient);
     assert!(!message::is_read(message), EAlreadyRead);
 
-    // Marca como lida
+    // Marca mensagem como lida
     message::mark_as_read(message);
 
-    // [NEW] Atualiza Inbox
-    assert!(inbox::owner(reader_inbox) == reader, ENotRecipient);
-    inbox::decrement_unread_count(reader_inbox);
+    // Zera contador no Chat
+    chat::mark_as_read(chat, ctx);
 
     // Emite evento
     events::emit_message_read_simple(
@@ -89,25 +139,4 @@ entry fun mark_as_read(
         reader,
         now,
     );
-}
-
-// ==================== GETTERS ====================
-
-/// Retorna informações da mensagem
-public fun get_message_info(
-    message: &Message,
-): (
-    address, // sender
-    address, // recipient
-    u64, // created_at
-    u64, // created_at
-    bool, // is_read
-) {
-    (
-        message::sender(message),
-        message::recipient(message),
-        message::created_at(message),
-        message::created_at(message),
-        message::is_read(message),
-    )
 }
