@@ -21,6 +21,7 @@ public struct PrivateGroup has key, store {
 // ==================== ERRORS ====================
 
 const ENotAdmin: u64 = 20;
+const ENotMember: u64 = 21;
 
 // ==================== CRIAR GRUPO ====================
 
@@ -56,7 +57,7 @@ entry fun create_private_group(
         now,
     );
 
-    transfer::transfer(group, admin);
+    transfer::share_object(group);
 }
 
 // ==================== ENVIAR MENSAGEM NO GRUPO ====================
@@ -72,7 +73,7 @@ entry fun send_group_message(
     let now = clock::timestamp_ms(clock) / 1000;
 
     // Valida membership
-    assert!(vector::contains(&group.members, &sender), ENotAdmin); // Reusing ENotAdmin or should add ENotMember
+    assert!(vector::contains(&group.members, &sender), ENotMember);
 
     // Incrementa contador
     group.message_count = group.message_count + 1;

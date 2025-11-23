@@ -8,6 +8,7 @@ use sui_messenger::message::{Self, Message};
 
 // ==================== ERRORS ====================
 const ENotRecipient: u64 = 1;
+const ENotParticipant: u64 = 2;
 const EAlreadyRead: u64 = 3;
 
 // ==================== ENVIAR MENSAGEM (Chat Existente) ====================
@@ -82,6 +83,8 @@ fun internal_send_message(
     let sender = tx_context::sender(ctx);
     let now = clock::timestamp_ms(clock) / 1000;
 
+    assert!(chat::is_participant(chat, sender), ENotParticipant);
+
     // 1. Auto-Mark as Read para o REMETENTE (se ele tinha mensagens não lidas)
     chat::mark_as_read(chat, ctx);
 
@@ -139,4 +142,24 @@ entry fun mark_as_read(message: &mut Message, chat: &mut Chat, clock: &Clock, ct
         reader,
         now,
     );
+}
+
+// ==================== SEAL ACCESS CONTROL ====================
+
+/// SEAL approval function: Allows the message sender to decrypt their own sent messages
+/// This is called by SEAL key servers during decryption to verify access rights
+public fun seal_approve_sender(_message_id: vector<u8>, chat: &Chat, ctx: &TxContext) {
+    let caller = tx_context::sender(ctx);
+    // Verify caller is a participant in the chat (sender or receiver)
+    assert!(chat::is_participant(chat, caller), ENotParticipant);
+    // SEAL convention: function must return () to indicate approval
+}
+
+/// SEAL approval function: Allows the message recipient to decrypt received messages
+/// This is called by SEAL key servers during decryption to verify access rights
+public fun seal_approve_receiver(_message_id: vector<u8>, chat: &Chat, ctx: &TxContext) {
+    let caller = tx_context::sender(ctx);
+    // Verify caller is a participant in the chat (sender or receiver)
+    assert!(chat::is_participant(chat, caller), ENotParticipant);
+    // SEAL convention: function must return () to indicate approval
 }

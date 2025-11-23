@@ -103,6 +103,10 @@ public(package) fun increment_unread(chat: &mut Chat, recipient: address) {
     }
 }
 
+public fun is_participant(chat: &Chat, addr: address): bool {
+    vector::contains(&chat.participants, &addr)
+}
+
 // ==================== HELPERS ====================
 
 public fun chat_exists(
