@@ -1,17 +1,13 @@
-/// Módulo centralizado de eventos
 module sui_messenger::events;
 
 use std::string::String;
 use sui::event;
-
-// ==================== EVENTOS ====================
 
 public struct MessageSent has copy, drop {
     message_id: ID,
     sender: address,
     recipient: address,
     walrus_blob_id: String,
-    seal_policy_id: Option<ID>,
     content_hash: vector<u8>,
     timestamp: u64,
 }
@@ -35,14 +31,11 @@ public struct GroupMessageSent has copy, drop {
     timestamp: u64,
 }
 
-// ==================== EMITTERS ====================
-
 public(package) fun emit_message_sent(
     message_id: ID,
     sender: address,
     recipient: address,
     walrus_blob_id: String,
-    seal_policy_id: Option<ID>,
     content_hash: vector<u8>,
     timestamp: u64,
 ) {
@@ -51,7 +44,6 @@ public(package) fun emit_message_sent(
         sender,
         recipient,
         walrus_blob_id,
-        seal_policy_id,
         content_hash,
         timestamp,
     });

@@ -1,15 +1,10 @@
 module sui_messenger::chat;
 
-use std::vector;
 use sui::event;
 use sui::table::{Self, Table};
 use sui::vec_map::{Self, VecMap};
 
-// ==================== ERRORS ====================
 const EChatAlreadyExists: u64 = 0;
-const EParticipantNotFound: u64 = 1;
-
-// ==================== STRUCTS ====================
 
 public struct ChatRegistry has key {
     id: UID,
@@ -23,13 +18,10 @@ public struct Chat has key, store {
     message_count: u64,
 }
 
-// ==================== EVENTS ====================
 public struct ChatCreated has copy, drop {
     id: ID,
     participants: vector<address>,
 }
-
-// ==================== INITIALIZATION ====================
 
 fun init(ctx: &mut TxContext) {
     let registry = ChatRegistry {
@@ -39,10 +31,6 @@ fun init(ctx: &mut TxContext) {
     transfer::share_object(registry);
 }
 
-// ==================== PUBLIC FUNCTIONS ====================
-
-/// Creates a new chat object (not shared yet).
-/// Aborts if chat already exists in registry.
 public fun create_chat(
     registry: &mut ChatRegistry,
     other_party: address,
@@ -69,13 +57,11 @@ public fun create_chat(
         message_count: 0,
     };
 
-    // Register ID
     table::add(&mut registry.chats, key, object::id(&chat));
 
     chat
 }
 
-/// Shares the chat object
 public fun share_chat(chat: Chat) {
     event::emit(ChatCreated {
         id: object::id(&chat),
@@ -84,7 +70,6 @@ public fun share_chat(chat: Chat) {
     transfer::share_object(chat);
 }
 
-/// Marks messages as read for the sender
 public fun mark_as_read(chat: &mut Chat, ctx: &mut TxContext) {
     let sender = tx_context::sender(ctx);
     if (vec_map::contains(&chat.unread_counts, &sender)) {
@@ -92,8 +77,6 @@ public fun mark_as_read(chat: &mut Chat, ctx: &mut TxContext) {
         *count = 0;
     }
 }
-
-// ==================== PACKAGE FUNCTIONS ====================
 
 public(package) fun increment_unread(chat: &mut Chat, recipient: address) {
     chat.message_count = chat.message_count + 1;
@@ -106,8 +89,6 @@ public(package) fun increment_unread(chat: &mut Chat, recipient: address) {
 public fun is_participant(chat: &Chat, addr: address): bool {
     vector::contains(&chat.participants, &addr)
 }
-
-// ==================== HELPERS ====================
 
 public fun chat_exists(
     registry: &ChatRegistry,
